@@ -2,6 +2,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 import datetime
 import json
+import os
+from pathlib import Path
 import re
 from typing import List, Dict, Optional
 
@@ -16,11 +18,13 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 
+
 from setting import GOOD_READS_BASE_URL, USER_AGENT
 
 
 # Creamos una sesión HTTP reutilizable (más eficiente que requests.get suelto)
 SESSION = requests.Session()
+BASE_DIR = Path(__file__).resolve().parents[1]
 # Cabeceras "realistas" para parecer un navegador y evitar bloqueos básicos
 SESSION.headers.update({
     "User-Agent": (
@@ -294,8 +298,7 @@ def process_many(book_ids: List[str], max_workers: int = 8, with_reviews=True) -
     # Creamos el pool con N hilos
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         # Lanzamos una tarea (future) por cada ID de libro
-        futs = {ex.submit(process_one, bid, with_reviews)
-                          : bid for bid in book_ids}
+        futs = {ex.submit(process_one, bid, with_reviews)                : bid for bid in book_ids}
 
         # Según se vayan completando, recogemos los resultados
         for fut in as_completed(futs):
@@ -319,5 +322,6 @@ if __name__ == "__main__":
     # Convertimos el dataclass BookData a diccionario para poder tabularlo
     df = pd.DataFrame(books)
 
+    os.makedirs((BASE_DIR/"landing"), exist_ok=True)
     df.to_json("landing/goodreads_books.json", orient="records",
                force_ascii=False, indent=2)

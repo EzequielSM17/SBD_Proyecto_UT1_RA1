@@ -90,7 +90,6 @@ def fetch_book_from_google(isbn: str) -> BookData:
 
 def process_isbns_to_csv(json_path: str, csv_output: str) -> None:
     json_df = pd.read_json(json_path)
-    print(f"Encontrados {len(json_df)} ISBNs en {json_path}")
     json_df["isbn13"] = json_df["isbn13"].astype(int)
     books: list[BookData] = []
 
@@ -107,7 +106,6 @@ def process_isbns_to_csv(json_path: str, csv_output: str) -> None:
     df = pd.DataFrame(books)
 
     df.to_csv(csv_output, index=False, encoding="utf-8")
-    print(f"CSV guardado en: {csv_output}")
 
 
 if __name__ == "__main__":
