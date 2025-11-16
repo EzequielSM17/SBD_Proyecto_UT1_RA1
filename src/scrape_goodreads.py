@@ -318,5 +318,6 @@ if __name__ == "__main__":
     books = process_many(sample_ids, max_workers=4, with_reviews=True)
     # Convertimos el dataclass BookData a diccionario para poder tabularlo
     df = pd.DataFrame(books)
+
     df.to_json("landing/goodreads_books.json", orient="records",
                force_ascii=False, indent=2)
