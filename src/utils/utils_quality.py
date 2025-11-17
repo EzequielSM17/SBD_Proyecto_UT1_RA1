@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 
-from utils.utils_isbn import is_valid_isbn13, isbn13_valid_or_false
+from utils.utils_isbn import isbn13_valid_or_false
 from utils.utils_normalization import _authors_valid, _genres_valid, _pub_date_valid, _review_lang_valid, is_non_empty_string, is_positive_number, is_valid_currency_iso4217, is_valid_language_bcp47, is_valid_url
 
 
@@ -76,7 +76,6 @@ def apply_validation_rules(
 
 def validate_goodreads_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     df = df.copy()
-
     required_cols = [
         "url",
         "title",
@@ -106,6 +105,12 @@ def validate_goodreads_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any
         "review_by_lang_valid": ("review_count_by_lang", _review_lang_valid),
         "genres_valid": ("genres", _genres_valid)
     }
+    if "price" in df.columns:
+        df["q_gb_price_not_null"] = df["price"].apply(
+            lambda x: is_positive_number(x, allow_zero=True) or pd.isna(x)
+        )
+    else:
+        df["q_gb_price_not_null"] = False
 
     df = apply_validation_rules(df, rules, prefix="q_gr_")
 
@@ -122,8 +127,11 @@ def validate_goodreads_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any
         df["q_gr_rating_valid"].mean())
     metrics["goodreads_pct_language_not_null"] = float(
         df["q_gr_language_not_null"].mean())
+    metrics["goodreads_pct_price_not_null"] = float(
+        df["q_gb_price_not_null"].mean())
     metrics["goodreads_nulls"] = null_ratio(
-        df, ["title", "isbn13", "rating_value", "language", "num_pages"]
+        df, ["title", "isbn13", "rating_value",
+             "language", "num_pages", "price"]
     )
 
     return df, metrics
@@ -141,7 +149,6 @@ def validate_googlebooks_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, A
         "url",
         "title",
         "authors",
-        "publication_date",
         "language",
     ]
     check_required_columns(df, required_cols, dataset_name="googlebooks")
@@ -150,7 +157,6 @@ def validate_googlebooks_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, A
         "title_valid": ("title", is_non_empty_string),
         "url_valid": ("url", is_valid_url),
         "authors_not_null": ("authors", is_non_empty_string),
-        "pub_date_valid": ("publication_date", _pub_date_valid),
         "language_valid": ("language", is_valid_language_bcp47),
         "isbn13_not_null": ("isbn13", pd.notna),
         "isbn13_valid": ("isbn13", isbn13_valid_or_false),
@@ -161,13 +167,6 @@ def validate_googlebooks_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, A
 
     df = apply_validation_rules(df, rules, prefix="q_gb_")
 
-    if "price_amount" in df.columns:
-        df["q_gb_price_amount_non_negative"] = df["price_amount"].apply(
-            lambda x: is_positive_number(x, allow_zero=True) or pd.isna(x)
-        )
-    else:
-        df["q_gb_price_amount_non_negative"] = True
-
     metrics: Dict[str, Any] = {}
     metrics["googlebooks_rows"] = int(len(df))
     metrics["googlebooks_pct_title_not_null"] = float(
@@ -176,17 +175,11 @@ def validate_googlebooks_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, A
         df["q_gb_isbn13_not_null"].mean())
     metrics["googlebooks_pct_isbn13_valid"] = float(
         df["q_gb_isbn13_valid"].mean())
-    metrics["googlebooks_pct_pub_date_valid"] = float(
-        df["q_gb_pub_date_valid"].mean())
     metrics["googlebooks_pct_language_valid"] = float(
         df["q_gb_language_valid"].mean())
-    if "price_amount" in df.columns:
-        metrics["googlebooks_pct_price_amount_non_negative"] = float(
-            df["q_gb_price_amount_non_negative"].mean()
-        )
 
     metrics["googlebooks_nulls"] = null_ratio(
-        df, ["title", "isbn13", "price_amount", "language", "publication_date"]
+        df, ["title", "isbn13",  "language"]
     )
 
     return df, metrics

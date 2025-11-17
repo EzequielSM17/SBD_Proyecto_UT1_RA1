@@ -12,7 +12,9 @@ def bronze() -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
     good_read_dataset = pd.read_json(GOOD_READS_JSON_URL)
 
     ts_now = pd.Timestamp.now(tz="UTC")
-
+    good_read_dataset["isbn13"] = good_read_dataset["isbn13"].astype("Int64")
+    good_read_dataset["num_pages"] = good_read_dataset["num_pages"].astype(
+        "Int64")
     # Añadir columnas de metadatos a los dataframes
     google_dataset["_source"] = "googlebooks_books.csv"
     google_dataset["_ingest_ts"] = ts_now

@@ -1,14 +1,18 @@
 # src/utils_normalization.py
 
 from __future__ import annotations
+from typing import Any, Dict, List
 
 import ast
 import hashlib
+import math
 import re
-from typing import Any, Dict, Iterable, List
+from typing import Any, List
 
 import numpy as np
 import pandas as pd
+
+from const.BCP_47 import LANG_MAP_GOODREADS
 
 
 def safe_eval(x):
@@ -37,61 +41,27 @@ def to_list(x) -> List[str]:
     return []
 
 
-def _compute_title_length(title: Any) -> float | None:
-    if not isinstance(title, str):
+def clean(v):
+    if v is None:
         return None
-    return float(len(title.strip())) if title.strip() else None
-
-
-def _normalize_authors_google(authors_val: Any) -> str | None:
-    """
-    Google: a veces autores viene como "['Bill Bryson']" (string).
-    Para simplificar, lo dejamos como string plano sin corchetes.
-    """
-    if authors_val is None or (isinstance(authors_val, float) and np.isnan(authors_val)):
+    if isinstance(v, float) and pd.isna(v):
         return None
-    s = str(authors_val).strip()
-    # quita corchetes y comillas típicos de repr de lista
-    s = s.strip("[]")
-    s = s.replace("'", "").replace('"', "")
-    # separa por coma y limpia espacios
-    parts = [p.strip() for p in s.split(",") if p.strip()]
-    return "|".join(parts) if parts else None
-
-
-def _normalize_authors_goodreads(authors_val: Any) -> str | None:
-    """
-    Goodreads: viene como lista de autores. La convertimos a "autor1|autor2".
-    """
-    if isinstance(authors_val, (list, tuple)):
-        parts = [str(a).strip() for a in authors_val if str(a).strip()]
-        return "|".join(parts) if parts else None
-    if isinstance(authors_val, str):
-        return authors_val.strip()
+    if isinstance(v, str):
+        v = v.strip()
+        return v or None
     return None
 
 
-def _normalize_categories(val: Any) -> str | None:
-    """
-    Une categorías en forma "cat1|cat2|cat3".
-    Google: puede venir como "['Travel']" o lista.
-    Goodreads: lista.
-    """
-    if val is None or (isinstance(val, float) and np.isnan(val)):
+def clean_number(x):
+    if x is None:
         return None
-    if isinstance(val, (list, tuple)):
-        parts = [str(x).strip() for x in val if str(x).strip()]
-        return "|".join(parts) if parts else None
-
-    s = str(val).strip()
-    if not s:
+    if isinstance(x, float) and math.isnan(x):
+        return None
+    try:
+        return float(x)
+    except Exception:
         return None
 
-    # si viene como "['Travel', 'Humor']"
-    s = s.strip("[]")
-    s = s.replace("'", "").replace('"', "")
-    parts = [p.strip() for p in s.split(",") if p.strip()]
-    return "|".join(parts) if parts else None
 
 # ----------------------------
 # Helpers genéricos
@@ -115,55 +85,8 @@ def normalize_columns_snake_case(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ----------------------------
-# Fechas
-# ----------------------------
-
-def normalize_pub_date_to_iso(date_value: Any) -> str | None:
-    """
-    Normaliza fechas de Google Books tipo:
-      - '1993'
-      - '1993-03'
-      - '1993-03-01'
-    a formato ISO-8601 'YYYY-MM-DD'.
-
-    Si no se puede, devuelve None.
-    """
-    if date_value is None or (isinstance(date_value, float) and np.isnan(date_value)):
-        return None
-
-    s = str(date_value).strip()
-    if not s:
-        return None
-
-    # solo año
-    if re.fullmatch(r"\d{4}", s):
-        return f"{s}-01-01"
-
-    # año-mes
-    if re.fullmatch(r"\d{4}-\d{2}", s):
-        return f"{s}-01"
-
-    # ya parece ISO completo
-    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
-        return s
-
-    # otros formatos raros -> None (o podrías intentar parsear con datetime)
-    return None
-
-
-# ----------------------------
 # Idioma
 # ----------------------------
-
-LANG_MAP_GOODREADS = {
-    # Goodreads suele traer 'English', 'Spanish', etc.
-    "english": "en",
-    "spanish": "es",
-    "español": "es",
-    "french": "fr",
-    "german": "de",
-    # añade los que necesites
-}
 
 
 def normalize_language(value: Any) -> str | None:
@@ -186,30 +109,6 @@ def normalize_language(value: Any) -> str | None:
     # si ya parece un código bcp-47 tipo 'en' o 'en-US', lo pasamos a lower
     # (opcional: podrías respetar mayúscula en región, ej: 'en-US')
     return lower
-
-
-# ----------------------------
-# Moneda y precios
-# ----------------------------
-
-def normalize_currency(value: Any) -> str | None:
-    if value is None or (isinstance(value, float) and np.isnan(value)):
-        return None
-    s = str(value).strip().upper()
-    if not s:
-        return None
-    # aquí podrías filtrar solo a códigos conocidos, pero para el ejercicio
-    # basta con ponerlo en mayúsculas.
-    return s
-
-
-def normalize_price(value: Any) -> float | None:
-    if value is None or (isinstance(value, float) and np.isnan(value)):
-        return None
-    try:
-        return float(value)
-    except Exception:
-        return None
 
 
 # ----------------------------
@@ -314,11 +213,6 @@ def _authors_valid(x: Any) -> bool:
     return all(is_non_empty_string(a) for a in x)
 
 
-def _pub_date_valid(x: Any) -> bool:
-    # si ya usas pub_date_is_iso_or_false, cámbialo directamente
-    return pub_date_is_iso_or_false(x)
-
-
 def _review_lang_valid(x: Any) -> bool:
     if x is None or isinstance(x, float) and np.isnan(x):
         return True
@@ -338,3 +232,24 @@ def _genres_valid(x: Any) -> bool:
     if not isinstance(x, (list, tuple)):
         return False
     return all(is_non_empty_string(g) for g in x)
+
+
+def _norm_text(x: Any) -> str:
+    if not isinstance(x, str):
+        return ""
+    return x.strip().lower()
+
+
+def _first_author_norm(x: Any) -> str:
+    # Goodreads/Google pueden traer lista o string
+    if x is None or (isinstance(x, float) and pd.isna(x)):
+        return ""
+    if isinstance(x, (list, tuple)):
+        if not x:
+            return ""
+        return _norm_text(str(x[0]))
+    if isinstance(x, str):
+        # si viniera tipo "Autor1, Autor2" cogemos el primero
+        first = x.split(",")[0]
+        return _norm_text(first)
+    return _norm_text(str(x))

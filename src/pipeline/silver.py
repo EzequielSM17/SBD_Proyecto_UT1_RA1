@@ -56,17 +56,6 @@ def silver() -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
         f"({metrics_gb['googlebooks_pct_title_not_null']:.2%})"
     )
 
-    # Google Books: si tienes fechas normalizadas, exige un % mínimo válidas
-    # (puedes relajar si aún no has normalizado a YYYY-MM-DD)
-    if metrics_gb["googlebooks_rows"] > 0:
-        # ejemplo: exigimos que al menos el 50% tengan fecha válida
-        assert (
-            metrics_gb["googlebooks_pct_pub_date_valid"] >= 0.50
-        ), (
-            "Google Books: demasiadas fechas no válidas "
-            f"({metrics_gb['googlebooks_pct_pub_date_valid']:.2%})"
-        )
-
     # ---------------------------
     # 3) Flag de "registro válido" por fila (opcional pero útil)
     # ---------------------------

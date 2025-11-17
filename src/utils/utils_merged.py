@@ -2,7 +2,7 @@ import math
 from typing import Any, Dict, List, Optional
 import pandas as pd
 
-from utils.utils_normalization import is_non_empty_string, normalize_language
+from utils.utils_normalization import _first_author_norm, _norm_text, clean, clean_number, is_non_empty_string, normalize_language, to_list
 
 
 def pick_number(val_gr: float | int, val_gb:  float | int,) -> float | int:
@@ -16,18 +16,8 @@ def pick_number(val_gr: Any, val_gb: Any) -> Optional[float]:
     Devuelve el número mayor entre los dos, ignorando nulos.
     Si ambos son nulos, devuelve None.
     """
-    def clean(x):
-        if x is None:
-            return None
-        if isinstance(x, float) and math.isnan(x):
-            return None
-        try:
-            return float(x)
-        except Exception:
-            return None
-
-    n_gr = clean(val_gr)
-    n_gb = clean(val_gb)
+    n_gr = clean_number(val_gr)
+    n_gb = clean_number(val_gb)
 
     if n_gr is None and n_gb is None:
         return None
@@ -44,16 +34,6 @@ def pick_string(val_gr: Any, val_gb: Any) -> Optional[str]:
       - si uno está vacío/nulo y el otro no → gana el no vacío
       - si los dos existen → gana el más largo
     """
-    def clean(v):
-        if v is None:
-            return None
-        if isinstance(v, float) and pd.isna(v):
-            return None
-        if isinstance(v, str):
-            v = v.strip()
-            return v or None
-        return None
-
     s_gr = clean(val_gr)
     s_gb = clean(val_gb)
 
@@ -74,19 +54,6 @@ def merge_lists(list_gr: Any, list_gb: Any) -> List[str]:
       - une ambas
       - elimina duplicados manteniendo orden
     """
-    def to_list(x):
-        if x is None or (isinstance(x, float) and pd.isna(x)):
-            return []
-        if isinstance(x, (list, tuple)):
-            return [str(v).strip() for v in x if str(v).strip()]
-        if isinstance(x, str):
-            # soporta "a|b|c" o "a, b"
-            if "|" in x:
-                parts = x.split("|")
-            else:
-                parts = [x]
-            return [p.strip() for p in parts if p.strip()]
-        return []
 
     values = to_list(list_gr) + to_list(list_gb)
 
@@ -127,7 +94,11 @@ def merge_book_rows(row_gr: pd.Series, row_gb: Optional[pd.Series]) -> Dict[str,
     """
 
     merged: Dict[str, Any] = {}
-
+    if row_gb is None:
+        source_winner = "goodreads"
+    else:
+        source_winner = "merged"
+    merged["source_winner"] = source_winner
     # ID / isbn13
     isbn13 = row_gr.get("isbn13")
     if row_gb is not None and pd.notna(row_gb.get("isbn13")):
@@ -257,32 +228,58 @@ def merge_book_rows(row_gr: pd.Series, row_gb: Optional[pd.Series]) -> Dict[str,
 def merge_books(df_gr: pd.DataFrame, df_gb: pd.DataFrame) -> pd.DataFrame:
     """
     Goodreads (df_gr) es el dataset base:
-      - si hay mismo isbn13 en Google Books → merge con reglas
-      - si no hay isbn13 en Google Books → se conserva solo Goodreads
+      - si hay isbn13 en Goodreads y existe en Google Books → merge por isbn13
+      - si isbn13 en Goodreads es null → intentar match por (title, author)
+      - si no se encuentra nada → se conserva solo Goodreads
     """
 
-    # Aseguramos que isbn13 se pueda buscar bien
     df_gr = df_gr.copy()
     df_gb = df_gb.copy()
 
-    # índice por isbn13 en Google Books para lookup rápido
-    df_gb_indexed = df_gb.set_index("isbn13", drop=False)
+    # -----------------------------
+    # Índice rápido por isbn13
+    # -----------------------------
+    df_gb_isbn = df_gb.set_index("isbn13", drop=False)
+
+    # -----------------------------
+    # Índice auxiliar por (title_norm, author_norm)
+    # para el caso en que isbn13 de Goodreads sea null
+    # -----------------------------
+    df_gb["title_norm"] = df_gb["title"].apply(_norm_text)
+    df_gb["author_norm"] = df_gb["authors"].apply(_first_author_norm)
+
+    # diccionario {(title_norm, author_norm) -> fila de Google Books}
+    # si hay duplicados, nos quedamos con la primera ocurrencia
+    gb_by_title_author: Dict[tuple, pd.Series] = {}
+    for _, row in df_gb.iterrows():
+        key = (row["title_norm"], row["author_norm"])
+        if key not in gb_by_title_author:
+            gb_by_title_author[key] = row
 
     merged_records: List[Dict[str, Any]] = []
 
     for _, row_gr in df_gr.iterrows():
+        row_gb = None
         isbn = row_gr.get("isbn13")
 
-        row_gb = None
-        # si isbn no es nulo y existe en df_gb, lo cogemos
-        if pd.notna(isbn) and isbn in df_gb_indexed.index:
-            # si hay duplicados de isbn en Google Books, nos quedamos con la primera fila
-            gb_rows = df_gb_indexed.loc[isbn]
-            if isinstance(gb_rows, pd.DataFrame):
-                row_gb = gb_rows.iloc[0]
-            else:
-                row_gb = gb_rows
+        # 1) Intento por isbn13, si viene
+        if pd.notna(isbn):
+            if isbn in df_gb_isbn.index:
+                gb_rows = df_gb_isbn.loc[isbn]
+                if isinstance(gb_rows, pd.DataFrame):
+                    row_gb = gb_rows.iloc[0]
+                else:
+                    row_gb = gb_rows
 
+        # 2) Si no hay isbn13 en GR o no se encontró en GB, probamos por título+autor
+        if row_gb is None:
+            title_norm = _norm_text(row_gr.get("title"))
+            author_norm = _first_author_norm(row_gr.get("authors"))
+            key = (title_norm, author_norm)
+            if key in gb_by_title_author:
+                row_gb = gb_by_title_author[key]
+
+        # 3) Merge con la lógica que ya tienes
         merged = merge_book_rows(row_gr, row_gb)
         merged_records.append(merged)
 

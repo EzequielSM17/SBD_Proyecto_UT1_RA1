@@ -1,9 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import asdict
-import datetime
 import json
 import os
-from pathlib import Path
 import re
 from typing import List, Dict, Optional
 
@@ -19,7 +16,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 
 
-from setting import GOOD_READS_BASE_URL, GOOD_READS_JSON_URL, LANDING_DIR, USER_AGENT
+from setting import BOOKS_IDS, GOOD_READS_BASE_URL, GOOD_READS_JSON_URL, LANDING_DIR, USER_AGENT
 
 
 # Creamos una sesión HTTP reutilizable (más eficiente que requests.get suelto)
@@ -59,7 +56,7 @@ def make_headless_chrome():
         raise
 
 
-def parse_basic(html: str, book_id: str) -> BookData:
+def parse_basic(html: str, book_id: int) -> BookData:
     """
     Extrae los campos básicos directamente del HTML usando BeautifulSoup.
     OJO: si Goodreads cambia sus clases/nodos, habrá que actualizar los selectores.
@@ -122,6 +119,13 @@ def parse_basic(html: str, book_id: str) -> BookData:
         pass
     edition_details = soup.find(
         class_="EditionDetails")
+    sell_button = soup.find_all(
+        class_="Button__container Button__container--block")
+    text_price = sell_button[1].find(class_="Button__labelItem")
+    try:
+        price = text_price.text.split("$")[1]
+    except Exception:
+        price = None
 
     extra_data = edition_details.find_all(
         class_="TruncatedContent__text TruncatedContent__text--small")
@@ -131,19 +135,33 @@ def parse_basic(html: str, book_id: str) -> BookData:
 
         new_extra_data.append(texto)
     try:
-        if "," in new_extra_data[0]:
-            format = new_extra_data[0].split(",")[1]
-            num_pages = int(new_extra_data[0].split(",")[0].split(" ")[0])
-        else:
+        if 5 == len(new_extra_data):
+            if "," in new_extra_data[0]:
+                format = new_extra_data[0].split(",")[1]
+                num_pages = int(new_extra_data[0].split(",")[0].split(" ")[0])
+            else:
+                format = new_extra_data[0]
+                num_pages = None
             format = new_extra_data[0]
-            num_pages = None
-        format = new_extra_data[0]
 
-        publisher = new_extra_data[1]
-        isbns = new_extra_data[2].split(" ")
-        isbn13 = isbns[0]
-        isbn = isbns[2].replace(")", "")
-        language = new_extra_data[4]
+            publisher = new_extra_data[1]
+            isbns = new_extra_data[2].split(" ")
+            isbn13 = int(isbns[0])
+            isbn = isbns[2].replace(")", "")
+            language = new_extra_data[4]
+        elif 4 == len(new_extra_data):
+            if "," in new_extra_data[0]:
+                format = new_extra_data[0].split(",")[1]
+                num_pages = int(new_extra_data[0].split(",")[0].split(" ")[0])
+            else:
+                format = new_extra_data[0]
+                num_pages = None
+            format = new_extra_data[0]
+
+            publisher = new_extra_data[1]
+            isbn13 = None
+            isbn = None
+            language = new_extra_data[3]
     except Exception as e:
         print("Error parsing extra data:", e)
     # Construimos el objeto con lo básico
@@ -152,13 +170,13 @@ def parse_basic(html: str, book_id: str) -> BookData:
         rating_value=rating_value, desc=desc, pub_info=pub_info, cover=cover,
         review_count_by_lang=review_count_by_lang, genres=genres, publisher=publisher,
         rating_count=rating_count, review_count=review_count, isbn=isbn, format=format,
-        language=language, num_pages=num_pages, isbn13=isbn13
+        language=language, num_pages=num_pages, isbn13=isbn13, price=price
     )
 
     return bd
 
 
-def fetch_book_html_selenium(book_id: str) -> Optional[str]:
+def fetch_book_html_selenium(book_id: int) -> Optional[str]:
     """
     Carga la página con Selenium (más lento, pero ejecuta JS) y devuelve el HTML.
     Usa Selenium solo si Requests no trae lo necesario.
@@ -179,7 +197,7 @@ def fetch_book_html_selenium(book_id: str) -> Optional[str]:
     # cerramos si lo abrimos aquí para no dejar procesos colgados
 
 
-def get_book(book_id: str) -> BookData:
+def get_book(book_id: int) -> BookData:
     """
     Orquestador:
     1) Prueba Requests (salvo que prefer_selenium=True).
@@ -245,7 +263,7 @@ def parse_reviews_from_html(html: str) -> List[Dict]:
     return reviews
 
 
-def get_reviews(book_id: str, max_pages: int = 3, delay: float = 1.0) -> List[Dict]:
+def get_reviews(book_id: int, max_pages: int = 3, delay: float = 1.0) -> List[Dict]:
     """
     Descarga reseñas de varias páginas (?page=2, ?page=3, ...).
     - max_pages: cuántas páginas intentar como máximo.
@@ -273,7 +291,7 @@ def get_reviews(book_id: str, max_pages: int = 3, delay: float = 1.0) -> List[Di
     return out
 
 
-def process_one(book_id: str, with_reviews=True) -> BookData:
+def process_one(book_id: int, with_reviews=True) -> BookData:
     """
     Descarga y parsea un único libro.
     Si with_reviews=True, también intenta traer sus reseñas.
@@ -287,7 +305,7 @@ def process_one(book_id: str, with_reviews=True) -> BookData:
     return bd
 
 
-def process_many(book_ids: List[str], max_workers: int = 8, with_reviews=True) -> List[BookData]:
+def process_many(book_ids: List[int], max_workers: int = 8, with_reviews=True) -> List[BookData]:
     """
     Procesa muchos libros en paralelo usando un pool de hilos (ThreadPoolExecutor).
     - book_ids: lista de IDs de libros de Goodreads.
@@ -316,8 +334,7 @@ def process_many(book_ids: List[str], max_workers: int = 8, with_reviews=True) -
 
 if __name__ == "__main__":
     # Ejemplo rápido de uso
-    sample_ids = [f"{id_book}" for id_book in range(
-        7, 207, 10)]  # IDs de libros en Goodreads
+    sample_ids = BOOKS_IDS  # IDs de libros en Goodreads
     books = process_many(sample_ids, max_workers=4, with_reviews=True)
     # Convertimos el dataclass BookData a diccionario para poder tabularlo
     df = pd.DataFrame(books)

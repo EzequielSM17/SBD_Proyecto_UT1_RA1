@@ -6,7 +6,7 @@ __pycache__/
 
 
 landing/
-docs/
+docs/*.json
 standard/
 
 # OS
