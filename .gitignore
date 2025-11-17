@@ -5,9 +5,10 @@ __pycache__/
 .ipynb_checkpoints/
 
 
-landing/
+landing/*.json
+landing/*.csv
 docs/*.json
-standard/
+standard/*.parquet
 
 # OS
 .DS_Store
