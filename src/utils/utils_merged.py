@@ -100,12 +100,15 @@ def merge_book_rows(row_gr: pd.Series, row_gb: Optional[pd.Series]) -> Dict[str,
         source_winner = "merged"
     merged["source_winner"] = source_winner
     # ID / isbn13
+    
     isbn13 = row_gr.get("isbn13")
     if row_gb is not None and pd.notna(row_gb.get("isbn13")):
         isbn13 = row_gb.get("isbn13") or isbn13
 
-    merged["id"] = str(isbn13 or row_gr.get("id"))
+    
     merged["isbn13"] = isbn13
+    
+    merged["id"] = str(isbn13)
     merged["isbn"] = row_gb.get(
         "isbn") if row_gb is not None else row_gr.get("isbn")
 
@@ -235,7 +238,6 @@ def merge_books(df_gr: pd.DataFrame, df_gb: pd.DataFrame) -> pd.DataFrame:
 
     df_gr = df_gr.copy()
     df_gb = df_gb.copy()
-
     # -----------------------------
     # Índice rápido por isbn13
     # -----------------------------
@@ -280,6 +282,9 @@ def merge_books(df_gr: pd.DataFrame, df_gb: pd.DataFrame) -> pd.DataFrame:
                 row_gb = gb_by_title_author[key]
 
         # 3) Merge con la lógica que ya tienes
+        if row_gr["isbn13"]==None:
+            row_gr["isbn13"]=row_gb["isbn13"]
+        
         merged = merge_book_rows(row_gr, row_gb)
         merged_records.append(merged)
 

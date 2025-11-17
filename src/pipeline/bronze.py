@@ -31,18 +31,14 @@ def bronze() -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
             "file": "google_books_data.csv",
             "ingest_ts": str(ts_now),
             "rows": int(len(google_dataset)),
-            "columns": list(google_dataset.columns),
             "num_columns": len(google_dataset.columns),
-            "dtypes": google_dataset.dtypes.astype(str).to_dict(),
             "file_size_bytes": os.path.getsize(GOOGLE_CSV_URL),
         },
         "goodreads": {
             "file": "goodreads_books.json",
             "ingest_ts": str(ts_now),
             "rows": int(len(good_read_dataset)),
-            "columns": list(good_read_dataset.columns),
             "num_columns": len(good_read_dataset.columns),
-            "dtypes": good_read_dataset.dtypes.astype(str).to_dict(),
             "file_size_bytes": os.path.getsize(GOOD_READS_JSON_URL),
         },
     }

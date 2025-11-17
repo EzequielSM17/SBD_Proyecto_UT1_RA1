@@ -4,7 +4,7 @@ import os
 
 load_dotenv()  # carga variables desde .env automáticamente
 
-BOOKS_IDS = [id_book for id_book in range(1, 10)]
+BOOKS_IDS = [id_book for id_book in range(1, 170, 7)]
 BASE_DIR = Path(__file__).resolve().parents[1]
 GOOD_READS_BASE_URL = os.getenv("GOOD_READS_BASE_URL")
 USER_AGENT = os.getenv("USER_AGENT")
