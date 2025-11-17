@@ -3,29 +3,25 @@ import pandas as pd
 import requests
 from dataclasses import asdict
 from typing import Optional
-from models.Book import BookData  # o desde donde tengas tu dataclass
+from models.Book import BookData
+# o desde donde tengas tu dataclass
+from setting import GOOD_READS_JSON_URL, GOOGLE_CSV_URL
 
 GOOGLE_BOOKS_API_URL = "https://www.googleapis.com/books/v1/volumes"
-# si tienes key, ponla aquí; si no, déjala en None
-API_KEY: Optional[str] = None
 
 
 def fetch_book_from_google(isbn: str) -> BookData:
     params = {"q": f"isbn:{isbn}"}
-    if API_KEY:
-        params["key"] = API_KEY
 
     r = requests.get(GOOGLE_BOOKS_API_URL, params=params, timeout=15)
     r.raise_for_status()
-    data = r.json()
 
+    data = r.json()
+    if r.status_code != 200:
+        raise Exception("No es una petición valida")
     # Si no hay resultados, devolvemos un BookData mínimo
     if "items" not in data or not data["items"]:
-        return BookData(
-            id=isbn,
-            url="",
-            isbn=isbn,
-        )
+        raise Exception("No existe este libro")
     if len(data["items"]) > 1:
         item = data["items"][1]
     else:
@@ -63,7 +59,7 @@ def fetch_book_from_google(isbn: str) -> BookData:
     # Construimos el BookData usando tu dataclass
     bd = BookData(
         id=volume_id,
-        url=f"https://books.google.com/books?id={volume_id}",
+        url=r.url,
         title=title,
         authors=authors,
         rating_value=rating_value,
@@ -75,7 +71,7 @@ def fetch_book_from_google(isbn: str) -> BookData:
         publication_timestamp=None,  # no lo da como timestamp, solo fecha en string
         publication_date=published_date,
         publisher=publisher,
-        isbn=isbn_13 or isbn_10 or isbn,  # priorizamos ISBN13
+        isbn=isbn_10 or isbn,  # priorizamos ISBN13
         isbn13=isbn_13,
         language=language,
         review_count_by_lang={},  # Google Books no separa por idioma
@@ -96,7 +92,7 @@ def process_isbns_to_csv(json_path: str, csv_output: str) -> None:
     for isbn in json_df["isbn13"]:
         try:
             bd = fetch_book_from_google(isbn)
-            time.sleep(2)  # para no saturar la API
+            time.sleep(0.5)  # para no saturar la API
             books.append(bd)
         except Exception as e:
             print(f"Error con ISBN {isbn}")
@@ -109,7 +105,5 @@ def process_isbns_to_csv(json_path: str, csv_output: str) -> None:
 
 
 if __name__ == "__main__":
-    json_input = "landing/goodreads_books.json"             # tu fichero con ISBNs
-    csv_output = "landing/google_books_data.csv"  # salida
 
-    process_isbns_to_csv(json_input, csv_output)
+    process_isbns_to_csv(GOOD_READS_JSON_URL, GOOGLE_CSV_URL)

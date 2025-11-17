@@ -1,4 +1,7 @@
 import re
+from typing import Any
+
+import numpy as np
 
 
 def is_valid_isbn13(value: str) -> bool:
@@ -16,3 +19,9 @@ def is_valid_isbn13(value: str) -> bool:
         return check == int(digits[-1])
     except Exception:
         return False
+
+
+def isbn13_valid_or_false(x: Any) -> bool:
+    if x is None or (isinstance(x, float) and np.isnan(x)):
+        return False
+    return is_valid_isbn13(str(x))

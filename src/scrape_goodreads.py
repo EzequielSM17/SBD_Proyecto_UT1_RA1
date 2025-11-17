@@ -19,12 +19,12 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 
 
-from setting import GOOD_READS_BASE_URL, USER_AGENT
+from setting import GOOD_READS_BASE_URL, GOOD_READS_JSON_URL, LANDING_DIR, USER_AGENT
 
 
 # Creamos una sesión HTTP reutilizable (más eficiente que requests.get suelto)
 SESSION = requests.Session()
-BASE_DIR = Path(__file__).resolve().parents[1]
+
 # Cabeceras "realistas" para parecer un navegador y evitar bloqueos básicos
 SESSION.headers.update({
     "User-Agent": (
@@ -148,7 +148,7 @@ def parse_basic(html: str, book_id: str) -> BookData:
         print("Error parsing extra data:", e)
     # Construimos el objeto con lo básico
     bd = BookData(
-        id=book_id, url=f"{GOOD_READS_BASE_URL}{book_id}", title=title, authors=authors,
+        id=book_id, url=f"{GOOD_READS_BASE_URL}{book_id}", title=title, authors=set(authors),
         rating_value=rating_value, desc=desc, pub_info=pub_info, cover=cover,
         review_count_by_lang=review_count_by_lang, genres=genres, publisher=publisher,
         rating_count=rating_count, review_count=review_count, isbn=isbn, format=format,
@@ -322,6 +322,6 @@ if __name__ == "__main__":
     # Convertimos el dataclass BookData a diccionario para poder tabularlo
     df = pd.DataFrame(books)
 
-    os.makedirs((BASE_DIR/"landing"), exist_ok=True)
-    df.to_json("landing/goodreads_books.json", orient="records",
+    os.makedirs(LANDING_DIR, exist_ok=True)
+    df.to_json(GOOD_READS_JSON_URL, orient="records",
                force_ascii=False, indent=2)
