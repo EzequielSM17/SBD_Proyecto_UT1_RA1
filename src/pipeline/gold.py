@@ -8,7 +8,7 @@ from const.prevenance import PROVENANCE
 from pipeline.silver import silver
 from setting import BOOKS_DETAIL_URL, DIM_BOOK_URL, DOCS_DIR, QUALITY_JSON_URL, STANDARD_DIR
 from utils.utils_merged import merge_books
-from utils.utils_normalization import generate_stable_book_id, normalize_columns_snake_case
+from utils.utils_normalization import generate_stable_book_id, normalize_columns_snake_case, safe_eval
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
@@ -30,6 +30,12 @@ def gold() -> None:
     google = normalize_columns_snake_case(google_silver)
     goodreads = normalize_columns_snake_case(goodreads_silver)
 
+    list_cols = ["authors", "genres", "comments"]
+    dict_cols = ["review_count_by_lang"]
+
+    for col in list_cols + dict_cols:
+        if col in google.columns:
+            google[col] = google[col].apply(safe_eval)
     # prioridad de fuentes (para supervivencia)
 
     all_sources = pd.concat([google, goodreads], ignore_index=True)
@@ -59,6 +65,7 @@ def gold() -> None:
         axis=1)
 
     dim_book = merge_books(goodreads, google)
+    dim_book["current"] = dim_book["current"].astype("string")
     dim_book["book_id"] = all_sources.apply(
         lambda r: generate_stable_book_id(
             r["isbn13"],

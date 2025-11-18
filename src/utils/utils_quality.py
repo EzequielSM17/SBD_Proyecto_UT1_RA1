@@ -123,14 +123,12 @@ def validate_goodreads_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Any
         df["q_gr_isbn13_not_null"].mean())
     metrics["goodreads_pct_isbn13_valid"] = float(
         df["q_gr_isbn13_valid"].mean())
-    metrics["goodreads_pct_rating_valid"] = float(
-        df["q_gr_rating_valid"].mean())
+
     metrics["goodreads_pct_language_not_null"] = float(
         df["q_gr_language_not_null"].mean())
-    metrics["goodreads_pct_price_not_null"] = float(
-        df["q_gb_price_not_null"].mean())
+
     metrics["goodreads_nulls"] = null_ratio(
-        df, ["title", "isbn13", "rating_value",
+        df, ["title", "isbn13",
              "language", "num_pages", "price"]
     )
 
@@ -180,14 +178,11 @@ def validate_googlebooks_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, A
         df["q_gb_isbn13_not_null"].mean())
     metrics["googlebooks_pct_isbn13_valid"] = float(
         df["q_gb_isbn13_valid"].mean())
-    metrics["googlebooks_pct_language_valid"] = float(
-        df["q_gb_language_valid"].mean())
 
     metrics["googlebooks_nulls"] = null_ratio(
-        df, ["title", "isbn13",  "language"]
+        df, ["title", "isbn13",
+             "language", "num_pages", "price"]
     )
-    metrics["goodreads_pct_price_not_null"] = float(
-        df["q_gb_price_not_null"].mean())
 
     return df, metrics
 

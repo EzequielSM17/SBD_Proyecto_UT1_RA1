@@ -28,6 +28,16 @@ DATE_PATTERNS = [
 ]
 
 
+def safe_eval(x):
+    """Convierte strings 'list-like' o 'dict-like' a Python real."""
+    if isinstance(x, str):
+        try:
+            return ast.literal_eval(x)
+        except:
+            return x  # si no se puede convertir, se queda como string
+    return x
+
+
 def to_list(x) -> List[str]:
     if x is None or (isinstance(x, float) and pd.isna(x)):
         return []
@@ -102,29 +112,30 @@ def normalize_language(value: Any) -> str | None:
     return lower
 
 
-def generate_stable_book_id(
-    isbn13: Any,
-    title: Any,
-    publisher: Any,
-    publication_date: Any
-
-) -> str:
+def generate_stable_book_id(isbn13, title, publisher, publication_date):
     """
-    Devuelve un book_id estable:
-      - Si hay isbn13, se usa tal cual.
-      - Si no, genera un hash de campos clave.
+    Genera un ID estable de libro:
+    - Si isbn13 existe y es válido (13 dígitos) → usar isbn13
+    - Si no, generar un hash estable con (title + publisher + publication_date)
     """
-    if isbn13 and isinstance(isbn13, (str, int)) and len(str(isbn13)) == 13:
-        return isbn13
 
-    parts = [
-        str(title or "").strip().lower(),
-        str(publisher or "").strip().lower(),
-        str(publication_date or "").strip(),
-    ]
-    raw = "|".join(parts)
-    # MD5 suficiente para este ejercicio
-    return hashlib.md5(raw.encode("utf-8")).hexdigest()
+    if pd.notna(isbn13):
+        isbn_str = re.sub(r"\D", "", str(isbn13))
+        if len(isbn_str) == 13:
+            return isbn_str
+
+    def clean(x):
+        if x is None or (isinstance(x, float) and pd.isna(x)):
+            return ""
+        return str(x).strip().lower()
+
+    key = "|".join([
+        clean(title),
+        clean(publisher),
+        clean(publication_date),
+    ])
+
+    return hashlib.sha1(key.encode("utf-8")).hexdigest()
 
 
 def is_non_empty_string(x: Any) -> bool:

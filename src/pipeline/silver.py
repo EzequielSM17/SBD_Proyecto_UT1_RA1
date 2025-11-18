@@ -18,7 +18,7 @@ def silver() -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
 
     google_bronze, goodreads_bronze, metadata = bronze()
     google_normalize = normalize_dataframe(google_bronze)
-    goodreads_normalize = normalize_dataframe(google_bronze)
+    goodreads_normalize = normalize_dataframe(goodreads_bronze)
     google_silver, metrics_gb = validate_googlebooks_df(google_normalize)
     goodreads_silver, metrics_gr = validate_goodreads_df(goodreads_normalize)
 
