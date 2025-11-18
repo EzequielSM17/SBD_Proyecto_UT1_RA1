@@ -94,21 +94,16 @@ def merge_book_rows(row_gr: pd.Series, row_gb: Optional[pd.Series]) -> Dict[str,
     """
 
     merged: Dict[str, Any] = {}
-    if row_gb is None:
-        source_winner = "goodreads"
-    else:
-        source_winner = "merged"
-    merged["source_winner"] = source_winner
+
     # ID / isbn13
-    
+
     isbn13 = row_gr.get("isbn13")
     if row_gb is not None and pd.notna(row_gb.get("isbn13")):
         isbn13 = row_gb.get("isbn13") or isbn13
 
-    
     merged["isbn13"] = isbn13
-    
-    merged["id"] = str(isbn13)
+
+    merged["id"] = isbn13
     merged["isbn"] = row_gb.get(
         "isbn") if row_gb is not None else row_gr.get("isbn")
 
@@ -153,12 +148,7 @@ def merge_book_rows(row_gr: pd.Series, row_gb: Optional[pd.Series]) -> Dict[str,
         if row_gb is not None
         else row_gr.get("pub_info")
     )
-    merged["publication_timestamp"] = (
-        pick_number(row_gr.get("publication_timestamp"),
-                    row_gb.get("publication_timestamp"))
-        if row_gb is not None
-        else row_gr.get("publication_timestamp")
-    )
+
     merged["publication_date"] = (
         pick_string(row_gr.get("publication_date"),
                     row_gb.get("publication_date"))
@@ -222,8 +212,23 @@ def merge_book_rows(row_gr: pd.Series, row_gb: Optional[pd.Series]) -> Dict[str,
         else row_gr.get("review_count")
     )
 
+    merged["price"] = (
+        row_gb.get("price")
+        if row_gb is not None
+        else row_gr.get("price")
+    )
+    merged["current"] = (
+        row_gb.get("current")
+        if row_gb is not None
+        else row_gr.get("review_count")
+    )
     # comments (solo Goodreads)
     merged["comments"] = row_gr.get("comments") or []
+    if row_gb is None:
+        source_winner = "goodreads"
+    else:
+        source_winner = "merged"
+    merged["source_winner"] = source_winner
 
     return merged
 
@@ -282,9 +287,9 @@ def merge_books(df_gr: pd.DataFrame, df_gb: pd.DataFrame) -> pd.DataFrame:
                 row_gb = gb_by_title_author[key]
 
         # 3) Merge con la lógica que ya tienes
-        if row_gr["isbn13"]==None:
-            row_gr["isbn13"]=row_gb["isbn13"]
-        
+        if row_gr["isbn13"] == None:
+            row_gr["isbn13"] = row_gb["isbn13"]
+
         merged = merge_book_rows(row_gr, row_gb)
         merged_records.append(merged)
 

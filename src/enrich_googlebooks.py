@@ -63,7 +63,14 @@ def fetch_book_from_google(
 
     rating_value = info.get("averageRating")
     rating_count = info.get("ratingsCount")
-
+    sale_info = item.get("saleInfo")
+    try:
+        sale = sale_info.get("listPrice")
+        price = sale.get("amount")
+        current = sale.get("currencyCode")
+    except Exception:
+        price = None
+        current = None
     isbn_10 = None
     isbn_13 = None
     for ident in info.get("industryIdentifiers", []):
@@ -83,7 +90,6 @@ def fetch_book_from_google(
         cover=cover,
         format=None,
         num_pages=page_count,
-        publication_timestamp=None,
         publication_date=published_date,
         publisher=publisher,
         isbn=isbn_10 or isbn,
@@ -94,7 +100,8 @@ def fetch_book_from_google(
         rating_count=rating_count,
         review_count=None,
         comments=[],
-        price=None,
+        price=price,
+        current=current
     )
 
     return bd

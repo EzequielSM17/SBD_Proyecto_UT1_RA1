@@ -14,7 +14,6 @@ class BookData:
     cover: Optional[str] = None
     format: Optional[str] = None
     num_pages: Optional[int] = None
-    publication_timestamp: Optional[int] = None
     publication_date: Optional[str] = None
     publisher: Optional[str] = None
     isbn: Optional[str] = None
@@ -26,3 +25,4 @@ class BookData:
     review_count: Optional[int] = None
     comments: List[Dict] = field(default_factory=list)
     price: Optional[float] = None
+    current: Optional[str] = None

@@ -2,7 +2,7 @@ from typing import Any, Dict, Tuple
 
 import pandas as pd
 from pipeline.bronze import bronze
-from utils.utils_quality import validate_goodreads_df, validate_googlebooks_df
+from utils.utils_quality import normalize_dataframe, validate_goodreads_df, validate_googlebooks_df
 
 
 def silver() -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
@@ -17,29 +17,18 @@ def silver() -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
     """
 
     google_bronze, goodreads_bronze, metadata = bronze()
+    google_normalize = normalize_dataframe(google_bronze)
+    goodreads_normalize = normalize_dataframe(google_bronze)
+    google_silver, metrics_gb = validate_googlebooks_df(google_normalize)
+    goodreads_silver, metrics_gr = validate_goodreads_df(goodreads_normalize)
 
-    # ---------------------------
-    # 1) Validar con utils_quality
-    # ---------------------------
-
-    google_silver, metrics_gb = validate_googlebooks_df(google_bronze)
-    goodreads_silver, metrics_gr = validate_goodreads_df(goodreads_bronze)
-
-    # Guardamos métricas de calidad dentro de metadata
     metadata["google_books_quality"] = metrics_gb
     metadata["goodreads_quality"] = metrics_gr
 
-    # ---------------------------
-    # 2) Aserciones bloqueantes (ejemplo)
-    #    Ajusta los umbrales si quieres
-    # ---------------------------
-
-    # Goodreads: al menos 90% de títulos no nulos
     assert (
         metrics_gr["goodreads_pct_title_not_null"] >= 0.90
     ), f"Goodreads: solo {metrics_gr['goodreads_pct_title_not_null']:.2%} títulos no nulos"
 
-    # Goodreads: al menos 80% de isbn13 válidos (si tu scraping lo permite)
     if metrics_gr["goodreads_pct_isbn13_not_null"] > 0:
         assert (
             metrics_gr["goodreads_pct_isbn13_valid"] >= 0.80
@@ -48,7 +37,6 @@ def silver() -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
             f"({metrics_gr['goodreads_pct_isbn13_valid']:.2%} válidos)"
         )
 
-    # Google Books: al menos 90% de títulos no nulos
     assert (
         metrics_gb["googlebooks_pct_title_not_null"] >= 0.90
     ), (
@@ -56,25 +44,18 @@ def silver() -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
         f"({metrics_gb['googlebooks_pct_title_not_null']:.2%})"
     )
 
-    # ---------------------------
-    # 3) Flag de "registro válido" por fila (opcional pero útil)
-    # ---------------------------
-
-    # Google Books: registro válido si pasan checks básicos
     google_silver["q_record_valid"] = (
         google_silver["q_gb_title_valid"]
         & google_silver["q_gb_isbn13_valid"]
         & google_silver["q_gb_language_valid"]
     )
 
-    # Goodreads: registro válido si pasan checks básicos
     goodreads_silver["q_record_valid"] = (
         goodreads_silver["q_gr_title_valid"]
         & goodreads_silver["q_gr_isbn13_valid"]
         & goodreads_silver["q_gr_rating_valid"]
     )
 
-    # Puedes añadir a metadata cuántos registros válidos hay
     metadata["google_books_quality"]["rows_valid"] = int(
         google_silver["q_record_valid"].sum()
     )

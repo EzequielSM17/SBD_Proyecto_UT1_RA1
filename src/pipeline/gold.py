@@ -4,10 +4,11 @@ from pathlib import Path
 
 import pandas as pd
 
+from const.prevenance import PROVENANCE
 from pipeline.silver import silver
-from setting import BOOKS_DETAIL_URL, DIM_BOOK_URL, DOCS_DIR, QUALITY_JSON_URL, SCHEMA_URL, STANDARD_DIR
+from setting import BOOKS_DETAIL_URL, DIM_BOOK_URL, DOCS_DIR, QUALITY_JSON_URL, STANDARD_DIR
 from utils.utils_merged import merge_books
-from utils.utils_normalization import generate_stable_book_id, normalize_columns_snake_case,  safe_eval
+from utils.utils_normalization import generate_stable_book_id, normalize_columns_snake_case
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 
@@ -28,13 +29,6 @@ def gold() -> None:
 
     google = normalize_columns_snake_case(google_silver)
     goodreads = normalize_columns_snake_case(goodreads_silver)
-
-    list_cols = ["authors", "genres", "comments"]
-    dict_cols = ["review_count_by_lang"]
-
-    for col in list_cols + dict_cols:
-        if col in google.columns:
-            google[col] = google[col].apply(safe_eval)
 
     # prioridad de fuentes (para supervivencia)
 
@@ -65,7 +59,15 @@ def gold() -> None:
         axis=1)
 
     dim_book = merge_books(goodreads, google)
-
+    dim_book["book_id"] = all_sources.apply(
+        lambda r: generate_stable_book_id(
+            r["isbn13"],
+            r["title"],
+            r["publisher"],
+            r["publication_date"]
+        ),
+        axis=1,
+    )
     dim_book = dim_book.drop_duplicates(
         subset=["isbn13"], keep="first")
 
@@ -77,13 +79,13 @@ def gold() -> None:
             all_sources["isbn13"].value_counts().gt(1).sum()
         ),
     }
-
+    dim_book["provenance"] = json.dumps(PROVENANCE)
     STANDARD_DIR.mkdir(exist_ok=True)
-
+    all_sources.drop(columns=["id"], inplace=True)
+    dim_book.drop(columns=["id"], inplace=True)
     dim_book.to_parquet(DIM_BOOK_URL,
                         index=False, engine="pyarrow")
 
-    all_sources["id"] = all_sources["isbn13"]
     all_sources.to_parquet(BOOKS_DETAIL_URL, index=False, engine="pyarrow")
 
     DOCS_DIR.mkdir(exist_ok=True)

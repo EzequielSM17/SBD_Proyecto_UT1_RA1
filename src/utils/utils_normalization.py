@@ -1,7 +1,8 @@
 # src/utils_normalization.py
 
 from __future__ import annotations
-from typing import Any, Dict, List
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 import ast
 import hashlib
@@ -14,15 +15,17 @@ import pandas as pd
 
 from const.BCP_47 import LANG_MAP_GOODREADS
 
+_URL_RE = re.compile(r"^https?://", re.IGNORECASE)
+_DATE_ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")  # YYYY-MM-DD
+_LANG_RE = re.compile(r"^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$")  # patrón BCP-47
 
-def safe_eval(x):
-    """Convierte strings 'list-like' o 'dict-like' a Python real."""
-    if isinstance(x, str):
-        try:
-            return ast.literal_eval(x)
-        except:
-            return x  # si no se puede convertir, se queda como string
-    return x
+DATE_PATTERNS = [
+    "%Y-%m-%d",
+    "%Y-%m",
+    "%Y",
+    "%B %d, %Y",      # July 16, 2005
+    "%b %d, %Y",      # Jul 16, 2005
+]
 
 
 def to_list(x) -> List[str]:
@@ -63,11 +66,6 @@ def clean_number(x):
         return None
 
 
-# ----------------------------
-# Helpers genéricos
-# ----------------------------
-
-
 def to_snake_case(name: str) -> str:
     """Convierte 'Pub Date' o 'pubDate' a 'pub_date'."""
     if not isinstance(name, str):
@@ -82,11 +80,6 @@ def normalize_columns_snake_case(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df.columns = [to_snake_case(c) for c in df.columns]
     return df
-
-
-# ----------------------------
-# Idioma
-# ----------------------------
 
 
 def normalize_language(value: Any) -> str | None:
@@ -106,14 +99,8 @@ def normalize_language(value: Any) -> str | None:
     if lower in LANG_MAP_GOODREADS:
         return LANG_MAP_GOODREADS[lower]
 
-    # si ya parece un código bcp-47 tipo 'en' o 'en-US', lo pasamos a lower
-    # (opcional: podrías respetar mayúscula en región, ej: 'en-US')
     return lower
 
-
-# ----------------------------
-# ID canónico (book_id)
-# ----------------------------
 
 def generate_stable_book_id(
     isbn13: Any,
@@ -127,10 +114,9 @@ def generate_stable_book_id(
       - Si hay isbn13, se usa tal cual.
       - Si no, genera un hash de campos clave.
     """
-    if isinstance(isbn13, str) and isbn13.strip():
-        return isbn13.strip()
+    if isbn13 and isinstance(isbn13, (str, int)) and len(str(isbn13)) == 13:
+        return isbn13
 
-    # clave provisional para el hash
     parts = [
         str(title or "").strip().lower(),
         str(publisher or "").strip().lower(),
@@ -139,16 +125,6 @@ def generate_stable_book_id(
     raw = "|".join(parts)
     # MD5 suficiente para este ejercicio
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
-
-
-# ---------------------------------------------------------------------
-# Utilidades genéricas
-# ---------------------------------------------------------------------
-
-_URL_RE = re.compile(r"^https?://", re.IGNORECASE)
-_DATE_ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")  # YYYY-MM-DD
-_LANG_RE = re.compile(r"^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$")  # patrón BCP-47
-_CURRENCY_RE = re.compile(r"^[A-Z]{3}$")  # ISO-4217
 
 
 def is_non_empty_string(x: Any) -> bool:
@@ -191,18 +167,6 @@ def is_valid_language_bcp47(x: Any) -> bool:
     if not isinstance(x, str):
         return False
     return bool(_LANG_RE.match(x.strip()))
-
-
-def is_valid_currency_iso4217(x: Any) -> bool:
-    if not isinstance(x, str):
-        return False
-    return bool(_CURRENCY_RE.match(x.strip()))
-
-
-def _pub_date_valid(x: Any) -> bool:
-    if x is None or (isinstance(x, float) and np.isnan(x)):
-        return False
-    return is_valid_iso_date(str(x))
 
 
 def _authors_valid(x: Any) -> bool:
@@ -253,3 +217,106 @@ def _first_author_norm(x: Any) -> str:
         first = x.split(",")[0]
         return _norm_text(first)
     return _norm_text(str(x))
+
+
+def _try_parse_date(raw: str) -> Optional[datetime]:
+    raw = raw.strip()
+    for pattern in DATE_PATTERNS:
+        try:
+            return datetime.strptime(raw, pattern)
+        except ValueError:
+            continue
+    return None
+
+
+def normalize_pub_info_to_date(pub_info):
+    if not pub_info or not isinstance(pub_info, str):
+        return None
+
+    pub_info = pub_info.strip()
+
+    m = re.search(r"([A-Za-z]+ \d{1,2}, \d{4})", pub_info)
+    if not m:
+        return None
+
+    date_str = m.group(1)
+
+    dt = _try_parse_date(date_str)
+    if not dt:
+        return None
+
+    return dt.strftime("%Y-%m-%d")
+
+
+def normalize_gb_date(gb_date: Optional[str]) -> Optional[str]:
+    """
+    Google Books puede devolver:
+      - '2015-12-08'
+      - '2015-12'
+      - '2015'
+    Devolvemos ISO 8601 lo más precisa posible (como string).
+    """
+    if not gb_date:
+        return None
+
+    dt = _try_parse_date(gb_date)
+    if not dt:
+        return None
+
+    # Mantener la granularidad original
+    if len(gb_date) == 4:
+        return dt.strftime("%Y")          # YYYY
+    elif len(gb_date) == 7:
+        return dt.strftime("%Y-%m")       # YYYY-MM
+    else:
+        return dt.strftime("%Y-%m-%d")    # YYYY-MM-DD
+
+
+def pick_publication_date(gr_pub_info: Optional[str],
+                          gr_pub_date: Optional[str],
+                          gb_pub_date: Optional[str]) -> Optional[str]:
+    """
+    Regla simple:
+    - Si Google Books trae fecha → prefer-gb
+    - Si no, intentar derivar desde Goodreads (pub_info)
+    """
+    gb_norm = normalize_gb_date(gb_pub_date) if gb_pub_date else None
+    if gb_norm:
+        return gb_norm
+
+    # Si Goodreads tiene publication_date directa ya normalizada:
+    if gr_pub_date:
+        gr_dt = _try_parse_date(gr_pub_date)
+        if gr_dt:
+            return gr_dt.strftime("%Y-%m-%d")
+
+    # Si no, intentar desde pub_info
+    return normalize_pub_info_to_date(gr_pub_info)
+
+
+def normalize_currency_code(currency: Optional[str]) -> Optional[str]:
+    """
+    Asegura que la moneda esté en formato ISO-4217:
+    - upper-case
+    - 3 letras
+    Si no cumple, devuelve None.
+    """
+    if not currency:
+        return None
+    currency = str(currency).strip().upper()
+    if re.fullmatch(r"[A-Z]{3}", currency):
+        return currency
+    return None
+
+
+def normalize_price(raw_price: Any) -> Optional[float]:
+    """
+    Convierte el precio a float con punto decimal.
+    Acepta strings y números. Si no es parseable, devuelve None.
+    """
+    if raw_price is None or raw_price == "":
+        return None
+    try:
+        return float(str(raw_price).replace(",", "."))
+    except ValueError:
+        return None

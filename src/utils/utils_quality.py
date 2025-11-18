@@ -10,7 +10,7 @@ import pandas as pd
 
 
 from utils.utils_isbn import isbn13_valid_or_false
-from utils.utils_normalization import _authors_valid, _genres_valid, _pub_date_valid, _review_lang_valid, is_non_empty_string, is_positive_number, is_valid_currency_iso4217, is_valid_language_bcp47, is_valid_url
+from utils.utils_normalization import _authors_valid, _genres_valid, _review_lang_valid, is_non_empty_string, is_positive_number, is_valid_language_bcp47, is_valid_url, normalize_currency_code, normalize_gb_date, normalize_language, normalize_price, normalize_pub_info_to_date
 
 
 def check_required_columns(
@@ -166,7 +166,12 @@ def validate_googlebooks_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, A
     }
 
     df = apply_validation_rules(df, rules, prefix="q_gb_")
-
+    if "price" in df.columns:
+        df["q_gb_price_not_null"] = df["price"].apply(
+            lambda x: is_positive_number(x, allow_zero=True) or pd.isna(x)
+        )
+    else:
+        df["q_gb_price_not_null"] = False
     metrics: Dict[str, Any] = {}
     metrics["googlebooks_rows"] = int(len(df))
     metrics["googlebooks_pct_title_not_null"] = float(
@@ -181,5 +186,21 @@ def validate_googlebooks_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, A
     metrics["googlebooks_nulls"] = null_ratio(
         df, ["title", "isbn13",  "language"]
     )
+    metrics["goodreads_pct_price_not_null"] = float(
+        df["q_gb_price_not_null"].mean())
 
     return df, metrics
+
+
+def safe_apply(df, col, func):
+    if col in df:
+        df[col] = df[col].apply(lambda x: func(x) if pd.notna(x) else None)
+
+
+def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    safe_apply(df, "publication_date", normalize_gb_date)
+    safe_apply(df, "pub_info", normalize_pub_info_to_date)
+    safe_apply(df, "current", normalize_currency_code)
+    safe_apply(df, "price", normalize_price)
+    safe_apply(df, "language", normalize_language)
+    return df

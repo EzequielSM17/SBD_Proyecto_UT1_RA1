@@ -115,8 +115,10 @@ def parse_basic(html: str, book_id: int) -> BookData:
     text_price = sell_button[1].find(class_="Button__labelItem")
     try:
         price = text_price.text.split("$")[1]
+        current = "USD"
     except Exception:
         price = None
+        current = None
 
     extra_data = edition_details.find_all(
         class_="TruncatedContent__text TruncatedContent__text--small")
@@ -153,6 +155,19 @@ def parse_basic(html: str, book_id: int) -> BookData:
             isbn13 = None
             isbn = None
             language = new_extra_data[3]
+        elif 3 == len(new_extra_data):
+            if "," in new_extra_data[0]:
+                format = new_extra_data[0].split(",")[1]
+                num_pages = int(new_extra_data[0].split(",")[0].split(" ")[0])
+            else:
+                format = new_extra_data[0]
+                num_pages = None
+            format = new_extra_data[0]
+
+            publisher = new_extra_data[1]
+            isbn13 = None
+            isbn = None
+            language = new_extra_data[2]
     except Exception as e:
         print("Error parsing extra data:", e)
     bd = BookData(
@@ -160,7 +175,7 @@ def parse_basic(html: str, book_id: int) -> BookData:
         rating_value=rating_value, desc=desc, pub_info=pub_info, cover=cover,
         review_count_by_lang=review_count_by_lang, genres=genres, publisher=publisher,
         rating_count=rating_count, review_count=review_count, isbn=isbn, format=format,
-        language=language, num_pages=num_pages, isbn13=isbn13, price=price
+        language=language, num_pages=num_pages, isbn13=isbn13, price=price, current=current
     )
 
     return bd
