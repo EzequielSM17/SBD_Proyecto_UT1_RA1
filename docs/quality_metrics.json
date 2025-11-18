@@ -1,0 +1,51 @@
+{
+  "google_books": {
+    "file": "google_books_data.csv",
+    "ingest_ts": "2025-11-18 16:30:29.154418+00:00",
+    "rows": 18,
+    "num_columns": 24,
+    "file_size_bytes": 14957
+  },
+  "goodreads": {
+    "file": "goodreads_books.json",
+    "ingest_ts": "2025-11-18 16:30:29.154418+00:00",
+    "rows": 21,
+    "num_columns": 24,
+    "file_size_bytes": 2366635
+  },
+  "google_books_quality": {
+    "googlebooks_rows": 18,
+    "googlebooks_pct_title_not_null": 1.0,
+    "googlebooks_pct_isbn13_not_null": 1.0,
+    "googlebooks_pct_isbn13_valid": 1.0,
+    "googlebooks_nulls": {
+      "title": 0.0,
+      "isbn13": 0.0,
+      "language": 0.0,
+      "num_pages": 0.0,
+      "price": 0.9444444444444444
+    },
+    "rows_valid": 18
+  },
+  "goodreads_quality": {
+    "goodreads_rows": 21,
+    "goodreads_pct_title_not_null": 1.0,
+    "goodreads_pct_isbn13_not_null": 0.9047619047619048,
+    "goodreads_pct_isbn13_valid": 0.9047619047619048,
+    "goodreads_pct_language_not_null": 1.0,
+    "goodreads_nulls": {
+      "title": 0.0,
+      "isbn13": 0.09523809523809523,
+      "language": 0.0,
+      "num_pages": 0.047619047619047616,
+      "price": 0.5714285714285714
+    },
+    "rows_valid": 19
+  },
+  "integration": {
+    "dim_book_rows": 21,
+    "book_source_detail_rows": 39,
+    "distinct_book_ids": 21,
+    "duplicates_groups": 16
+  }
+}
