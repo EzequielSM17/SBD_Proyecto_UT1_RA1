@@ -6,4 +6,6 @@ python-dotenv==1.2.1
 requests-html==0.10.0
 selenium==4.38.0
 webdriver-manager==4.0.2
+playwright==1.56.0
+#IMPORTANTE playwright install chromium
 
