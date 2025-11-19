@@ -14,9 +14,10 @@ from selenium import webdriver
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from playwright.sync_api import sync_playwright
 
 
-from setting import BOOKS_IDS, GOOD_READS_BASE_URL, GOOD_READS_JSON_URL, LANDING_DIR, USER_AGENT
+from setting import BOOKS_IDS, GOOD_READS_BASE_URL, GOOD_READS_JSON_URL, LANDING_DIR, SELENIUM, USER_AGENT
 
 
 # Creamos una sesión HTTP reutilizable (más eficiente que requests.get suelto)
@@ -43,13 +44,12 @@ def make_headless_chrome():
         opts.add_argument("--disable-gpu")
         opts.add_argument("--window-size=1920,1080")
 
-        print("Iniciando ChromeDriver...")
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(
             service=service,
             options=opts
         )
-        print("ChromeDriver iniciado correctamente.")
+        print("Selenium: ChromeDriver iniciado correctamente.")
         return driver
 
     except Exception as e:
@@ -128,57 +128,79 @@ def parse_basic(html: str, book_id: int) -> BookData:
 
         new_extra_data.append(texto)
     try:
-        if 5 == len(new_extra_data):
-            if "," in new_extra_data[0]:
-                format = new_extra_data[0].split(",")[1]
-                num_pages = int(new_extra_data[0].split(",")[0].split(" ")[0])
-            else:
-                format = new_extra_data[0]
-                num_pages = None
+        if "," in new_extra_data[0]:
+            format = new_extra_data[0].split(",")[1]
+            num_pages = int(new_extra_data[0].split(",")[0].split(" ")[0])
+        else:
             format = new_extra_data[0]
-
-            publisher = new_extra_data[1]
+            num_pages = None
+        format = new_extra_data[0]
+        publisher_data = new_extra_data[1].split(" by ")
+        publisher = publisher_data[-1]
+        publication_date = publisher_data[0].split(", ")[1]
+        isbn13 = None
+        isbn = None
+        if 5 == len(new_extra_data):
             isbns = new_extra_data[2].split(" ")
             isbn13 = int(isbns[0])
             isbn = isbns[2].replace(")", "")
             language = new_extra_data[4]
         elif 4 == len(new_extra_data):
-            if "," in new_extra_data[0]:
-                format = new_extra_data[0].split(",")[1]
-                num_pages = int(new_extra_data[0].split(",")[0].split(" ")[0])
-            else:
-                format = new_extra_data[0]
-                num_pages = None
-            format = new_extra_data[0]
-
-            publisher = new_extra_data[1]
-            isbn13 = None
-            isbn = None
             language = new_extra_data[3]
         elif 3 == len(new_extra_data):
-            if "," in new_extra_data[0]:
-                format = new_extra_data[0].split(",")[1]
-                num_pages = int(new_extra_data[0].split(",")[0].split(" ")[0])
-            else:
-                format = new_extra_data[0]
-                num_pages = None
-            format = new_extra_data[0]
-
-            publisher = new_extra_data[1]
-            isbn13 = None
-            isbn = None
             language = new_extra_data[2]
     except Exception as e:
-        print("Error parsing extra data:", e)
+        print(f"Error parsing {book_id} extra data:", e)
     bd = BookData(
         id=book_id, url=f"{GOOD_READS_BASE_URL}{book_id}", title=title, authors=set(authors),
         rating_value=rating_value, desc=desc, pub_info=pub_info, cover=cover,
         review_count_by_lang=review_count_by_lang, genres=genres, publisher=publisher,
         rating_count=rating_count, review_count=review_count, isbn=isbn, format=format,
-        language=language, num_pages=num_pages, isbn13=isbn13, price=price, current=current
+        language=language, num_pages=num_pages, isbn13=isbn13, price=price, current=current,
+        publication_date=publication_date
     )
 
     return bd
+
+
+def fetch_book_html_playwright(book_id: int) -> Optional[str]:
+    """
+    Carga la página con Playwright (más ligero que Selenium, también ejecuta JS)
+    y devuelve el HTML completo tras pulsar el botón de detalles.
+    """
+    url = f"{GOOD_READS_BASE_URL}{book_id}"
+    print(f"PlayWright Scrapeando: {url}")
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(
+                headless=True,
+                args=[
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                    "--window-size=1920,1080",
+                ]
+            )
+            context = browser.new_context(user_agent=USER_AGENT)
+            page = context.new_page()
+            page.goto(url, wait_until="networkidle")
+
+            # Esperamos y clicamos el botón de detalles (mismo XPATH que usabas)
+            boton = page.locator(
+                "//button[@aria-label='Book details and editions']")
+            boton.click()
+
+            # Pequeña espera para que carguen los detalles
+            page.wait_for_timeout(500)
+
+            html = page.content()
+
+            browser.close()
+            return html
+
+    except Exception as e:
+        print(f"ERROR AL CARGAR LIBRO {book_id} CON PLAYWRIGHT:", e)
+        return None
 
 
 def fetch_book_html_selenium(book_id: int) -> Optional[str]:
@@ -208,8 +230,11 @@ def get_book(book_id: int) -> BookData:
     2) Si falla/no hay HTML, usa Selenium.
     3) Parsea básicos + detalles y hace limpiezas al final.
     """
+    if SELENIUM:
+        html = fetch_book_html_selenium(book_id)
+    else:
+        html = fetch_book_html_playwright(book_id)
 
-    html = fetch_book_html_selenium(book_id)
     bd = parse_basic(html, book_id)
 
     return bd

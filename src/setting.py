@@ -4,7 +4,8 @@ import os
 
 load_dotenv()  # carga variables desde .env automáticamente
 
-BOOKS_IDS = [id_book for id_book in range(1, 170, 7)]
+
+BOOKS_IDS = [id_book for id_book in range(50, 80)]
 BASE_DIR = Path(__file__).resolve().parents[1]
 GOOD_READS_BASE_URL = os.getenv("GOOD_READS_BASE_URL")
 USER_AGENT = os.getenv("USER_AGENT")
@@ -18,3 +19,4 @@ GOOD_READS_JSON_URL = LANDING_DIR/"goodreads_books.json"
 GOOGLE_CSV_URL = LANDING_DIR/"googlebooks_books.csv"
 SCHEMA_URL = DOCS_DIR/"schema.md"
 QUALITY_JSON_URL = DOCS_DIR/"quality_metrics.json"
+SELENIUM = False  # Cambia False si quieres playwright

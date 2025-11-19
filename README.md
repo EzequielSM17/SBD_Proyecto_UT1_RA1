@@ -24,6 +24,8 @@ El flujo completo consta de tres scripts ejecutados en orden:
 ### Integración y normalización → Parquet  
 `src/integrate_pipeline.py`
 
+
+
 ---
 
 ## 2. 📦 Dependencias
@@ -33,6 +35,11 @@ Incluidas en `requirements.txt`:
 ```bash
 pip install -r requirements.txt
 ``` 
+
+> [!IMPORTANT]
+> Este proyecto puede ejecutar dos librerías, Selenium y Playwright.
+> Si quieres cambiar de modo en setting.py por defecto selenium pero si quieres playwright tiene que install chromium
+> para ello ejecutar en el Terminal ```playwright install chromium``` y pon en el setting.py ```SELENIUM=False```
 
 ## 3. ▶️ Cómo ejecutar el pipeline
 
