@@ -193,6 +193,7 @@ def safe_apply(df, col, func):
 
 
 def normalize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    df["publication_date"] = df["publication_date"].astype("string")
     safe_apply(df, "publication_date", normalize_gb_date)
     safe_apply(df, "pub_info", normalize_pub_info_to_date)
     safe_apply(df, "current", normalize_currency_code)
