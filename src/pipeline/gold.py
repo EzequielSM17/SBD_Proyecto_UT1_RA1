@@ -94,7 +94,9 @@ def gold() -> None:
                         index=False, engine="pyarrow")
 
     all_sources.to_parquet(BOOKS_DETAIL_URL, index=False, engine="pyarrow")
+    dim_book.to_csv(STANDARD_DIR/"dim_book.csv",index=False, encoding="utf-8")
 
+    all_sources.to_csv(STANDARD_DIR/"book_source_detail.csv", index=False, encoding="utf-8")
     DOCS_DIR.mkdir(exist_ok=True)
     with open(QUALITY_JSON_URL, "w", encoding="utf-8") as f:
         json.dump(metadata, f, ensure_ascii=False, indent=2)

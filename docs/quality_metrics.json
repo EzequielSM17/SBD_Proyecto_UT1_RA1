@@ -1,17 +1,17 @@
 {
   "google_books": {
     "file": "google_books_data.csv",
-    "ingest_ts": "2025-11-19 11:58:41.203536+00:00",
+    "ingest_ts": "2025-11-20 16:44:08.259340+00:00",
     "rows": 23,
     "num_columns": 24,
     "file_size_bytes": 19490
   },
   "goodreads": {
     "file": "goodreads_books.json",
-    "ingest_ts": "2025-11-19 11:58:41.203536+00:00",
+    "ingest_ts": "2025-11-20 16:44:08.259340+00:00",
     "rows": 27,
     "num_columns": 24,
-    "file_size_bytes": 2686013
+    "file_size_bytes": 2699092
   },
   "google_books_quality": {
     "googlebooks_rows": 23,
